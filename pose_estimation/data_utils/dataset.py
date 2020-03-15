@@ -1,5 +1,5 @@
-import os
 import random
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -13,13 +13,12 @@ from pose_estimation.data_utils.transforms import (affine_transform,
 
 def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, stage='train'):
     image_path = image_path.numpy().decode("utf-8")
-    img = cv2.imread(os.path.join(cfg.img_path, image_path),
-                     cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
-    if img is None:
-        print('cannot read ' + os.path.join(cfg.img_path, image_path))
-        assert 0
+    bbox = bbox.numpy()
+    joints = joints.numpy()
 
-    x, y, w, h = bbox.numpy()
+    img = cv2.imread(image_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
+
+    x, y, w, h = bbox
     aspect_ratio = cfg.input_shape[1] / cfg.input_shape[0]
     center = np.array([x + w * 0.5, y + h * 0.5])
     if w > aspect_ratio * h:
@@ -60,9 +59,10 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
                                          joints[i, 1] >= 0) & (
                                          joints[i, 1] < cfg.input_shape[0]))
         target_coord = joints[:, :2]
-        target_valid = joints[:, 2]
+        target_valid = (joints[:, 2] > 0).astype(np.float32)
 
         target = render_gaussian_heatmap(target_coord, cfg.output_shape, cfg.sigma)
+        target = target_valid * target
         return cropped_img, target
 
     else:
@@ -85,40 +85,56 @@ def render_gaussian_heatmap(coord, output_shape, sigma):
     x = list(range(output_shape[1]))
     y = list(range(output_shape[0]))
     xx, yy = tf.meshgrid(x, y)
-    xx = tf.reshape(tf.cast(xx, tf.float32), (1, *output_shape, 1))
-    yy = tf.reshape(tf.cast(yy, tf.float32), (1, *output_shape, 1))
+    xx = tf.reshape(tf.cast(xx, tf.float32), (*output_shape, 1))
+    yy = tf.reshape(tf.cast(yy, tf.float32), (*output_shape, 1))
 
-    x = tf.floor(tf.reshape(coord[:, :, 0], [-1, 1, 1, cfg.num_kps])
-                 / cfg.input_shape[1] * output_shape[1] + 0.5)
-    y = tf.floor(tf.reshape(coord[:, :, 1], [-1, 1, 1, cfg.num_kps])
-                 / cfg.input_shape[0] * output_shape[0] + 0.5)
+    x = tf.floor(coord[:, 0] / cfg.input_shape[1] * output_shape[1] + 0.5)
+    y = tf.floor(coord[:, 1] / cfg.input_shape[0] * output_shape[0] + 0.5)
 
-    return tf.exp(-(((xx - x) / tf.cast(sigma, tf.float32)) ** 2)
+    return tf.exp(- (((xx - x) / tf.cast(sigma, tf.float32)) ** 2)
                   / tf.cast(2, tf.float32)
                   - (((yy - y) / tf.cast(sigma, tf.float32)) ** 2)
                   / tf.cast(2, tf.float32))
 
 
 def dataset_generator(samples):
-    for s in samples:
-        bbox = np.array(s['bbox'], dtype=np.float32)
-        joints = np.array(s['joints'], dtype=np.float32).reshape(-1, 3)
-        yield s['imgpath'], bbox, joints
+    def dataset_gen():
+        for s in samples:
+            bbox = np.array(s['bbox'], dtype=np.float32)
+            joints = np.array(s['joints'], dtype=np.float32).reshape(-1, 3)
+            yield s['imgpath'], bbox, joints
+    return dataset_gen
+
+
+def get_dataloader(samples, batch_size, buffer, num_workers):
+    def map_func(image_path, bbox, joints):
+        out = tf.py_function(
+            generate_batch, [image_path, bbox, joints], (tf.float32, tf.float32))
+        out[0].set_shape((256, 192, 3))
+        out[1].set_shape((64, 48, 17))
+        return out
+
+    dataset_gen = dataset_generator(samples)
+    dataset = tf.data.Dataset.from_generator(
+        dataset_gen,
+        output_types=(tf.string, tf.float32, tf.float32),
+        output_shapes=(None, (4,), (17, 3))
+    )
+
+    dataset = (dataset.map(map_func, num_workers)
+                      .batch(batch_size)
+                      .prefetch(buffer))
+    return dataset
 
 
 def get_dataloaders(batch_size, buffer, num_workers):
-    samples = COCODataset(cfg.data_dir).load_train_data()
-    dataset_gen = dataset_generator(samples)
-    dataset = tf.data.Dataset.from_generator(dataset_gen,
-                                             output_types=(tf.string, tf.float32, tf.float32))
+    samples_train = COCODataset(Path(cfg.data_dir) / cfg.dataset).load_train_data()
+    dataset_train = get_dataloader(samples_train, batch_size, buffer, num_workers)
 
-    map_func = lambda x: tf.py_function(generate_batch, x, (tf.float32, tf.float32))
-    dataset = (dataset.map(map_func, num_workers)
-                      .batch(batch_size)
-                      .repeat()
-                      .prefetch(buffer))
+    samples_val = COCODataset(Path(cfg.data_dir) / cfg.dataset).load_val_data_with_annot()
+    dataset_val = get_dataloader(samples_val, batch_size, buffer, num_workers)
 
-    return dataset
+    return dataset_train, dataset_val
 
 
 if __name__ == '__main__':

@@ -21,10 +21,11 @@ class COCODataset:
 
     def __init__(self, base_path: Path):
         # human detection result
-        super().__init__(base_path)
         self.human_det_path = base_path / 'dets' / 'human_detection.json'
 
-        self.img_path = base_path / 'images'
+        self.train_imgs = base_path / 'train2017'
+        self.val_imgs = base_path / 'val2017'
+
         self.train_annot_path = base_path / 'annotations' / 'person_keypoints_train2017.json'
         self.val_annot_path = base_path / 'annotations' / 'person_keypoints_val2017.json'
         self.test_annot_path = base_path / 'annotations' / 'image_info_test-dev2017.json'
@@ -34,7 +35,7 @@ class COCODataset:
         train_samples = []
         for aid in coco.anns.keys():
             ann = coco.anns[aid]
-            imgname = 'train2017/' + coco.imgs[ann['image_id']]['file_name']
+            imgname = self.train_imgs / coco.imgs[ann['image_id']]['file_name']
             joints = ann['keypoints']
 
             if (ann['image_id'] not in coco.imgs) or ann['iscrowd'] or (np.sum(joints[2::3]) == 0) or (ann['num_keypoints'] == 0):
@@ -52,7 +53,7 @@ class COCODataset:
                 bbox = [x1, y1, x2-x1, y2-y1]
             else:
                 continue
-            data = dict(image_id=ann['image_id'], imgpath=imgname, bbox=bbox, joints=joints)
+            data = dict(image_id=ann['image_id'], imgpath=str(imgname.resolve()), bbox=bbox, joints=joints)
             train_samples.append(data)
         return train_samples
 
@@ -63,10 +64,10 @@ class COCODataset:
             ann = coco.anns[aid]
             if ann['image_id'] not in coco.imgs:
                 continue
-            imgname = 'val2017/' + coco.imgs[ann['image_id']]['file_name']
+            imgname = self.val_imgs / coco.imgs[ann['image_id']]['file_name']
             bbox = ann['bbox']
             joints = ann['keypoints']
-            data = dict(image_id=ann['image_id'], imgpath=imgname, bbox=bbox, joints=joints, score=1)
+            data = dict(image_id=ann['image_id'], imgpath=str(imgname.resolve()), bbox=bbox, joints=joints, score=1)
             val_samples.append(data)
         return val_samples
 

@@ -3,7 +3,7 @@ from tensorflow.keras.losses import MSE
 from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
 
 from pose_estimation.config import cfg
-from pose_estimation.data_utils.dataset import get_dataloader
+from pose_estimation.data_utils.dataset import get_dataloaders
 from pose_estimation.models.mobilenet_pose import MobileNetPose
 
 
@@ -13,8 +13,8 @@ def train():
     model.compile(optimizer='adam', loss=MSE, metrics=['mse'])
 
     checkpoint = ModelCheckpoint('./checkpoints', save_best_only=True)
-    dl = get_dataloader(cfg.batch_size, 5, 4)
-    model.fit(dl, callbacks=[checkpoint])
+    train_data, val_data = get_dataloaders(cfg.batch_size, buffer=5, num_workers=4)
+    model.fit(train_data, validation_data=val_data, callbacks=[checkpoint], epochs=100, validation_freq=5)
 
 
 def train_loop():
