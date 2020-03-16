@@ -13,9 +13,9 @@ class MobileNetPose(tf.keras.Model):
         )
 
         self.keypoint_heatmaps = tf.keras.Sequential([
-            layers.Conv2DTranspose(256, 4, 2, padding='same'),
-            layers.Conv2DTranspose(128, 4, 2, padding='same'),
-            layers.Conv2DTranspose(64, 4, 2, padding='same'),
+            layers.Conv2DTranspose(256, 4, 2, padding='same', activation='relu'),
+            layers.Conv2DTranspose(128, 4, 2, padding='same', activation='relu'),
+            layers.Conv2DTranspose(64, 4, 2, padding='same', activation='relu'),
             layers.Conv2D(17, 1, padding='same')
         ])
 

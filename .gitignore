@@ -1,8 +1,8 @@
 .idea
 .vscode
-**checkpoint**
 data/COCO
-notebooks/**
+models/**
+notebooks/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -147,4 +147,3 @@ cython_debug/
 # static files generated from Django application using `collectstatic`
 media
 static
-

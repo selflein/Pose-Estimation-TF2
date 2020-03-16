@@ -12,9 +12,9 @@ def train():
 
     model.compile(optimizer='adam', loss=MSE, metrics=['mse'])
 
-    checkpoint = ModelCheckpoint('./checkpoints', save_best_only=True)
-    train_data, val_data = get_dataloaders(cfg.batch_size, buffer=5, num_workers=4)
-    model.fit(train_data, validation_data=val_data, callbacks=[checkpoint], epochs=100, validation_freq=5)
+    checkpoint = ModelCheckpoint('models/checkpoints/weights.{epoch:03d}-{val_loss:.4f}.hdf5', save_best_only=True, save_weights_only=False)
+    train_data, len_train, val_data, len_val = get_dataloaders(cfg.batch_size, buffer=5, num_workers=8)
+    model.fit(train_data, validation_data=val_data, callbacks=[checkpoint], epochs=20, validation_freq=1, steps_per_epoch=len_train, validation_steps=len_val)
 
 
 def train_loop():

@@ -43,42 +43,28 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
                 joints_q, joints_w = joints[q, :].copy(), joints[w, :].copy()
                 joints[w, :], joints[q, :] = joints_q, joints_w
 
-        trans = get_affine_transform(center, scale, rotation,
-                                     (cfg.input_shape[1], cfg.input_shape[0]))
-        cropped_img = cv2.warpAffine(img, trans,
-                                     (cfg.input_shape[1], cfg.input_shape[0]),
-                                     flags=cv2.INTER_LINEAR)
-        # cropped_img = cropped_img[:,:, ::-1]
-        cropped_img = cfg.normalize_input(cropped_img)
+    trans = get_affine_transform(center, scale, rotation,
+                                 (cfg.input_shape[1], cfg.input_shape[0]))
+    cropped_img = cv2.warpAffine(img, trans,
+                                 (cfg.input_shape[1], cfg.input_shape[0]),
+                                 flags=cv2.INTER_LINEAR)
 
-        for i in range(cfg.num_kps):
-            if joints[i, 2] > 0:
-                joints[i, :2] = affine_transform(joints[i, :2], trans)
-                joints[i, 2] *= ((joints[i, 0] >= 0) & (
-                        joints[i, 0] < cfg.input_shape[1]) & (
-                                         joints[i, 1] >= 0) & (
-                                         joints[i, 1] < cfg.input_shape[0]))
-        target_coord = joints[:, :2]
-        target_valid = (joints[:, 2] > 0).astype(np.float32)
+    for i in range(cfg.num_kps):
+        if joints[i, 2] > 0:
+            joints[i, :2] = affine_transform(joints[i, :2], trans)
+            joints[i, 2] *= ((joints[i, 0] >= 0)
+                             & (joints[i, 0] < cfg.input_shape[1])
+                             & (joints[i, 1] >= 0)
+                             & (joints[i, 1] < cfg.input_shape[0]))
 
-        target = render_gaussian_heatmap(target_coord, cfg.output_shape, cfg.sigma)
-        target = target_valid * target
-        return cropped_img, target
+    cropped_img = cropped_img[:, :, ::-1]
+    cropped_img = cfg.normalize_input(cropped_img)
+    target_coord = joints[:, :2]
+    target_valid = (joints[:, 2] > 0).astype(np.float32)
 
-    else:
-        trans = get_affine_transform(center, scale, rotation,
-                                     (cfg.input_shape[1], cfg.input_shape[0]))
-        cropped_img = cv2.warpAffine(img, trans,
-                                     (cfg.input_shape[1], cfg.input_shape[0]),
-                                     flags=cv2.INTER_LINEAR)
-        # cropped_img = cropped_img[:,:, ::-1]
-        cropped_img = cfg.normalize_input(cropped_img)
-
-        crop_info = np.asarray(
-            [center[0] - scale[0] * 0.5, center[1] - scale[1] * 0.5,
-             center[0] + scale[0] * 0.5, center[1] + scale[1] * 0.5])
-
-        return [cropped_img, crop_info]
+    target = render_gaussian_heatmap(target_coord, cfg.output_shape, cfg.sigma)
+    target = target_valid * target
+    return cropped_img, target
 
 
 def render_gaussian_heatmap(coord, output_shape, sigma):
@@ -91,10 +77,11 @@ def render_gaussian_heatmap(coord, output_shape, sigma):
     x = tf.floor(coord[:, 0] / cfg.input_shape[1] * output_shape[1] + 0.5)
     y = tf.floor(coord[:, 1] / cfg.input_shape[0] * output_shape[0] + 0.5)
 
-    return tf.exp(- (((xx - x) / tf.cast(sigma, tf.float32)) ** 2)
-                  / tf.cast(2, tf.float32)
-                  - (((yy - y) / tf.cast(sigma, tf.float32)) ** 2)
-                  / tf.cast(2, tf.float32))
+    heatmap = tf.exp(- (((xx - x) / tf.cast(sigma, tf.float32)) ** 2)
+                     / tf.cast(2, tf.float32)
+                     - (((yy - y) / tf.cast(sigma, tf.float32)) ** 2)
+                     / tf.cast(2, tf.float32))
+    return heatmap
 
 
 def dataset_generator(samples):
@@ -106,10 +93,10 @@ def dataset_generator(samples):
     return dataset_gen
 
 
-def get_dataloader(samples, batch_size, buffer, num_workers):
+def get_dataloader(samples, batch_size, buffer, num_workers, split='train'):
     def map_func(image_path, bbox, joints):
         out = tf.py_function(
-            generate_batch, [image_path, bbox, joints], (tf.float32, tf.float32))
+            generate_batch, [image_path, bbox, joints, split], (tf.float32, tf.float32))
         out[0].set_shape((256, 192, 3))
         out[1].set_shape((64, 48, 17))
         return out
@@ -123,6 +110,7 @@ def get_dataloader(samples, batch_size, buffer, num_workers):
 
     dataset = (dataset.map(map_func, num_workers)
                       .batch(batch_size)
+                      .repeat()
                       .prefetch(buffer))
     return dataset
 
@@ -134,10 +122,12 @@ def get_dataloaders(batch_size, buffer, num_workers):
     samples_val = COCODataset(Path(cfg.data_dir) / cfg.dataset).load_val_data_with_annot()
     dataset_val = get_dataloader(samples_val, batch_size, buffer, num_workers)
 
-    return dataset_train, dataset_val
+    return dataset_train, len(samples_train) // batch_size, dataset_val, len(samples_val) // batch_size
 
 
 if __name__ == '__main__':
-    ds = get_dataloaders(4, 2, 2)
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    ds = get_dataloaders(4, 2, 1)[1]
     batch = next(iter(ds))
     print(batch)

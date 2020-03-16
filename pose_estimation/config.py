@@ -31,7 +31,7 @@ class Config:
         sigma = 2
     elif output_shape[0] == 96:
         sigma = 3
-    pixel_means = np.array([[[123.68, 116.78, 103.94]]])
+    pixel_means = np.array([[[123.68, 116.78, 103.94]]]) / 255.
 
     ## training config
     lr_dec_epoch = [90, 120]
@@ -72,10 +72,10 @@ class Config:
             return self.lr / (self.lr_dec_factor ** len(self.lr_dec_epoch))
 
     def normalize_input(self, img):
-        return img - self.pixel_means
+        return img / 255. - self.pixel_means
 
     def denormalize_input(self, img):
-        return img + self.pixel_means
+        return (img + self.pixel_means) * 255.
 
     def set_args(self, gpu_ids, continue_train=False):
         self.gpu_ids = gpu_ids
