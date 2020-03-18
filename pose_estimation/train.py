@@ -12,8 +12,8 @@ def train():
 
     model.compile(optimizer='adam', loss=MSE, metrics=['mse'])
 
-    checkpoint = ModelCheckpoint('models/checkpoints/weights.{epoch:03d}-{val_loss:.4f}.hdf5', save_best_only=True, save_weights_only=False)
-    train_data, len_train, val_data, len_val = get_dataloaders(cfg.batch_size, buffer=5, num_workers=8)
+    checkpoint = ModelCheckpoint('models/checkpoints/weights_{epoch:03d}_{val_loss:.5f}.hdf5', save_best_only=True, save_weights_only=False)
+    train_data, len_train, val_data, len_val = get_dataloaders(cfg.batch_size, buffer=5, num_workers=cfg.num_thread)
     model.fit(train_data, validation_data=val_data, callbacks=[checkpoint], epochs=20, validation_freq=1, steps_per_epoch=len_train, validation_steps=len_val)
 
 
