@@ -41,6 +41,6 @@ def extract_keypoints_from_heatmap(heatmap: tf.Tensor):
 if __name__ == '__main__':
     test_tensor = tf.random.normal((64, 48, 17))
     np.testing.assert_array_almost_equal(
-        extract_keypoints_from_heatmap(test_tensor).numpy(),
+        extract_keypoints_from_heatmap2(test_tensor).numpy(),
         extract_keypoints_from_heatmap_numpy(test_tensor)
     )

@@ -30,11 +30,13 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
 
     if stage == 'train':
         # data augmentation
-        scale = scale * np.clip(np.random.randn() * cfg.scale_factor + 1,
-                                1 - cfg.scale_factor, 1 + cfg.scale_factor)
+        scale *= np.clip(np.random.randn() * cfg.scale_factor + 1,
+                         1 - cfg.scale_factor, 1 + cfg.scale_factor)
+
         rotation = np.clip(np.random.randn() * cfg.rotation_factor,
-                           -cfg.rotation_factor * 2, cfg.rotation_factor * 2) \
-            if random.random() <= 0.6 else 0
+                           -cfg.rotation_factor * 2, cfg.rotation_factor * 2)
+
+        # Flipping augmentation
         if random.random() <= 0.5:
             img = img[:, ::-1, :]
             center[0] = img.shape[1] - 1 - center[0]
@@ -49,8 +51,12 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
                                  (cfg.input_shape[1], cfg.input_shape[0]),
                                  flags=cv2.INTER_LINEAR)
 
+    if stage == 'train':
+        if random.random() < 0.5:
+            cropped_img = cfg.motion_blur(image=cropped_img)
+
     for i in range(cfg.num_kps):
-        if joints[i, 2] > 0:
+        if joints[i, 2] > 1:
             joints[i, :2] = affine_transform(joints[i, :2], trans)
             joints[i, 2] *= ((joints[i, 0] >= 0)
                              & (joints[i, 0] < cfg.input_shape[1])
@@ -60,7 +66,7 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
     cropped_img = cropped_img[:, :, ::-1]
     cropped_img = cfg.normalize_input(cropped_img)
     target_coord = joints[:, :2]
-    target_valid = (joints[:, 2] > 0).astype(np.float32)
+    target_valid = (joints[:, 2] > 1).astype(np.float32)
 
     target = render_gaussian_heatmap(target_coord, cfg.output_shape, cfg.sigma)
     target = target_valid * target

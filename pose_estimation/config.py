@@ -1,7 +1,10 @@
 import os
 import os.path as osp
+from pathlib import Path
 import sys
 import numpy as np
+
+from imgaug.augmenters import MotionBlur
 
 
 class Config:
@@ -10,14 +13,10 @@ class Config:
     testset = 'val'  # train, test, val (there is no validation set for MPII)
 
     ## directory
-    cur_dir = osp.dirname(os.path.abspath(__file__))
-    root_dir = osp.join(cur_dir, '..')
-    data_dir = osp.join(root_dir, 'data')
-    output_dir = osp.join(root_dir, 'output')
-    model_dump_dir = osp.join(output_dir, 'model_dump', dataset)
-    vis_dir = osp.join(output_dir, 'vis', dataset)
-    log_dir = osp.join(output_dir, 'log', dataset)
-    result_dir = osp.join(output_dir, 'result', dataset)
+    cur_dir = Path(osp.dirname(os.path.abspath(__file__)))
+    root_dir = cur_dir.parent
+    data_dir = root_dir / 'data'
+    model_dump_dir = root_dir / 'models' / 'checkpoints'
 
     ## model setting
     backbone = 'resnet50'  # 'resnet50', 'resnet101', 'resnet152'
@@ -33,17 +32,26 @@ class Config:
         sigma = 3
     pixel_means = np.array([[[123.68, 116.78, 103.94]]]) / 255.
 
+    # ImageNet
+    normalize_param = dict(mean=[0.485, 0.456, 0.406],
+                           std=[0.229, 0.224, 0.225])
+
     ## training config
     lr_dec_epoch = [90, 120]
     end_epoch = 140
-    lr = 5e-4
+    lr = 1e-3
     lr_dec_factor = 10
     optimizer = 'adam'
     weight_decay = 1e-5
     bn_train = True
     batch_size = 32
-    scale_factor = 0.3
+
+    # Scale augmentation (+- in percent)
+    scale_factor = 0.4
+    # Rotation augmentation (+- in degrees)
     rotation_factor = 40
+    # Motion blur augmentation
+    motion_blur = MotionBlur((3, 15))
 
     ## testing config
     useGTbbox = False

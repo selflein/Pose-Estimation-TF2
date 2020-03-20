@@ -1,67 +1,54 @@
+import tqdm
 import tensorflow as tf
-from tensorflow.keras.losses import MSE
-from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
+from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, ReduceLROnPlateau, LearningRateScheduler, EarlyStopping
 
 from pose_estimation.config import cfg
 from pose_estimation.data_utils.dataset import get_dataloaders
-from pose_estimation.models.mobilenet_pose import MobileNetPose
+from pose_estimation.models.mobilenet_pose_pp import build_model
 
 
 def train():
-    model = MobileNetPose()
+    model_checkpoint_path = cfg.model_dump_dir / 'best.hd5'
+    model = build_model()
 
-    model.compile(optimizer='adam', loss=MSE, metrics=['mse'])
+    if cfg.continue_train:
+        model = model.load_weights(str(model_checkpoint_path))
+    optim = Adam(cfg.lr, epsilon=cfg.weight_decay)
+    model.compile(optimizer=optim, loss='mse', metrics=['mse'])
 
-    checkpoint = ModelCheckpoint('models/checkpoints/weights_{epoch:03d}_{val_loss:.5f}.hdf5', save_best_only=True, save_weights_only=False)
+    checkpoint = ModelCheckpoint(str(model_checkpoint_path), save_best_only=True, save_weights_only=False)
+    lr_sched = LearningRateScheduler(cfg.get_lr)
+    early_stopping = EarlyStopping(patience=5, restore_best_weights=True)
     train_data, len_train, val_data, len_val = get_dataloaders(cfg.batch_size, buffer=5, num_workers=cfg.num_thread)
-    model.fit(train_data, validation_data=val_data, callbacks=[checkpoint], epochs=20, validation_freq=1, steps_per_epoch=len_train, validation_steps=len_val)
+    model.fit(train_data, validation_data=val_data, callbacks=[checkpoint, lr_sched], epochs=cfg.end_epoch, validation_freq=1, steps_per_epoch=len_train, validation_steps=len_val)
 
 
 def train_loop():
-    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    model_checkpoint_path = cfg.model_dump_dir / 'best.hd5'
+    model = build_model()
+    if cfg.continue_train:
+        model = model.load_weights(str(model_checkpoint_path))
 
-    optimizer = tf.keras.optimizers.Adam()
+    optimizer = Adam(cfg.lr, epsilon=cfg.weight_decay)
+    criterion = MeanSquaredError()
 
-    train_loss = tf.keras.metrics.Mean(name='train_loss')
-    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
+    train_data, len_train, val_data, len_val = get_dataloaders(cfg.batch_size, buffer=5, num_workers=cfg.num_thread)
 
-    test_loss = tf.keras.metrics.Mean(name='test_loss')
-    test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
-    
-    model = MobileNetPose()
-    for epoch in range(5):
+    for epoch in range(cfg.end_epoch):
     # Reset the metrics at the start of the next epoch
-        train_loss.reset_states()
-        train_accuracy.reset_states()
-        test_loss.reset_states()
-        test_accuracy.reset_states()
-        for images, labels in train_ds:
+        pbar = tqdm.tqdm(train_data, total=len_train)
+        for images, labels in pbar:
             with tf.GradientTape() as tape:
                 # training=True is only needed if there are layers with different
                 # behavior during training versus inference (e.g. Dropout).
                 predictions = model(images, training=True)
-                loss = loss_object(labels, predictions)
+                loss = criterion(labels, predictions)
+                pbar.set_description(str(loss.numpy()))
+                pbar.update()
             gradients = tape.gradient(loss, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-
-        train_loss(loss)
-        train_accuracy(labels, predictions)
-
-        for test_images, test_labels in test_ds:
-            # training=False is only needed if there are layers with different
-            # behavior during training versus inference (e.g. Dropout).
-            predictions = model(images, training=False)
-            t_loss = loss_object(labels, predictions)
-
-            test_loss(t_loss)
-            test_accuracy(labels, predictions)
-
-        template = 'Epoch {}, Loss: {}, Accuracy: {}, Test Loss: {}, Test Accuracy: {}'
-        print(template.format(epoch+1,
-                                train_loss.result(),
-                                train_accuracy.result()*100,
-                                test_loss.result(),
-                                test_accuracy.result()*100))
 
 
 if __name__ == '__main__':
