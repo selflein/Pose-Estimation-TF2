@@ -1,10 +1,9 @@
 import os
 import os.path as osp
 from pathlib import Path
-import sys
-import numpy as np
 
-from imgaug.augmenters import MotionBlur
+import numpy as np
+import imgaug.augmenters as iaa
 
 
 class Config:
@@ -18,11 +17,6 @@ class Config:
     data_dir = root_dir / 'data'
     model_dump_dir = root_dir / 'models' / 'checkpoints'
 
-    ## model setting
-    backbone = 'resnet50'  # 'resnet50', 'resnet101', 'resnet152'
-    init_model = osp.join(data_dir, 'imagenet_weights',
-                          'resnet_v1_' + backbone[6:] + '.ckpt')
-
     ## input, output
     input_shape = (256, 192)  # (256,192), (384,288)
     output_shape = (input_shape[0] // 4, input_shape[1] // 4)
@@ -30,28 +24,26 @@ class Config:
         sigma = 2
     elif output_shape[0] == 96:
         sigma = 3
-    pixel_means = np.array([[[123.68, 116.78, 103.94]]]) / 255.
-
-    # ImageNet
-    normalize_param = dict(mean=[0.485, 0.456, 0.406],
-                           std=[0.229, 0.224, 0.225])
-
     ## training config
-    lr_dec_epoch = [90, 120]
     end_epoch = 140
     lr = 1e-3
-    lr_dec_factor = 10
+    lr_dec_rate = 0.95
     optimizer = 'adam'
-    weight_decay = 1e-5
+    weight_decay = 0.00004
     bn_train = True
-    batch_size = 32
+    batch_size = 96
 
     # Scale augmentation (+- in percent)
-    scale_factor = 0.4
+    scale_factor = 0.3
     # Rotation augmentation (+- in degrees)
     rotation_factor = 40
-    # Motion blur augmentation
-    motion_blur = MotionBlur((3, 15))
+
+    # Image augmentations
+    img_augmentations = iaa.Sequential([
+        iaa.Multiply((0.8, 1.2), per_channel=0.2),
+        iaa.LinearContrast((0.75, 1.5)),
+        iaa.MotionBlur((3, 15))
+    ], random_order=True)
 
     ## testing config
     useGTbbox = False
@@ -62,7 +54,7 @@ class Config:
 
     ## others
     multi_thread_enable = True
-    num_thread = 4
+    num_thread = 8
     gpu_ids = '0'
     num_gpus = 1
     continue_train = False
@@ -70,20 +62,13 @@ class Config:
 
     ## helper functions
     def get_lr(self, epoch):
-        for e in self.lr_dec_epoch:
-            if epoch < e:
-                break
-        if epoch < self.lr_dec_epoch[-1]:
-            i = self.lr_dec_epoch.index(e)
-            return self.lr / (self.lr_dec_factor ** i)
-        else:
-            return self.lr / (self.lr_dec_factor ** len(self.lr_dec_epoch))
+        return cfg.lr * (cfg.lr_dec_rate ** epoch)
 
     def normalize_input(self, img):
-        return img / 255. - self.pixel_means
+        return img / 127.5 - 1
 
     def denormalize_input(self, img):
-        return (img + self.pixel_means) * 255.
+        return (img + 1) * 127.5
 
     def set_args(self, gpu_ids, continue_train=False):
         self.gpu_ids = gpu_ids

@@ -6,12 +6,13 @@ from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, ReduceLROnP
 
 from pose_estimation.config import cfg
 from pose_estimation.data_utils.dataset import get_dataloaders
+from pose_estimation.models.mobilenet_pose import MobileNetPose
 from pose_estimation.models.mobilenet_pose_pp import build_model
 
 
 def train():
-    model_checkpoint_path = cfg.model_dump_dir / 'best.hd5'
-    model = build_model()
+    model_checkpoint_path = cfg.model_dump_dir / 'without_skip.hdf5'
+    model = MobileNetPose()
 
     if cfg.continue_train:
         model = model.load_weights(str(model_checkpoint_path))
@@ -19,14 +20,22 @@ def train():
     model.compile(optimizer=optim, loss='mse', metrics=['mse'])
 
     checkpoint = ModelCheckpoint(str(model_checkpoint_path), save_best_only=True, save_weights_only=False)
-    lr_sched = LearningRateScheduler(cfg.get_lr)
-    early_stopping = EarlyStopping(patience=5, restore_best_weights=True)
+    lr_sched = LearningRateScheduler(cfg.get_lr, verbose=1)
+    early_stopping = EarlyStopping(patience=10, restore_best_weights=True)
+    reduce_on_plateau = ReduceLROnPlateau(patience=3)
+
     train_data, len_train, val_data, len_val = get_dataloaders(cfg.batch_size, buffer=5, num_workers=cfg.num_thread)
-    model.fit(train_data, validation_data=val_data, callbacks=[checkpoint, lr_sched], epochs=cfg.end_epoch, validation_freq=1, steps_per_epoch=len_train, validation_steps=len_val)
+    model.fit(train_data,
+              validation_data=val_data,
+              callbacks=[checkpoint, reduce_on_plateau, early_stopping],
+              epochs=cfg.end_epoch,
+              validation_freq=1,
+              steps_per_epoch=len_train,
+              validation_steps=len_val)
 
 
 def train_loop():
-    model_checkpoint_path = cfg.model_dump_dir / 'best.hd5'
+    model_checkpoint_path = cfg.model_dump_dir / 'mobilenet_pose_pp.hdf5'
     model = build_model()
     if cfg.continue_train:
         model = model.load_weights(str(model_checkpoint_path))

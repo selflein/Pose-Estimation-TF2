@@ -19,16 +19,15 @@ class COCODataset:
     kps_symmetry = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12), (13, 14), (15, 16)]
     kps_lines = [(1, 2), (0, 1), (0, 2), (2, 4), (1, 3), (6, 8), (8, 10), (5, 7), (7, 9), (12, 14), (14, 16), (11, 13), (13, 15), (5, 6), (11, 12)]
 
-    def __init__(self, base_path: Path):
-        # human detection result
-        self.human_det_path = base_path / 'dets' / 'human_detection.json'
+    base_path = Path('data/COCO')
+    human_det_path = base_path / 'dets' / 'human_detection.json'
 
-        self.train_imgs = base_path / 'train2017'
-        self.val_imgs = base_path / 'val2017'
+    train_imgs = base_path / 'train2017'
+    val_imgs = base_path / 'val2017'
 
-        self.train_annot_path = base_path / 'annotations' / 'person_keypoints_train2017.json'
-        self.val_annot_path = base_path / 'annotations' / 'person_keypoints_val2017.json'
-        self.test_annot_path = base_path / 'annotations' / 'image_info_test-dev2017.json'
+    train_annot_path = base_path / 'annotations' / 'person_keypoints_train2017.json'
+    val_annot_path = base_path / 'annotations' / 'person_keypoints_val2017.json'
+    test_annot_path = base_path / 'annotations' / 'image_info_test-dev2017.json'
 
     def load_train_data(self):
         coco = COCO(self.train_annot_path)

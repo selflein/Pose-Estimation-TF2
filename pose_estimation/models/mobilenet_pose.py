@@ -12,8 +12,8 @@ class MobileNetPose(tf.keras.Model):
             weights='imagenet'
         )
 
-        for layer in self.base_model.layers[:58]:
-            layer.trainable = False
+        # for layer in self.base_model.layers[:58]:
+        #     layer.trainable = False
 
         self.keypoint_heatmaps = tf.keras.Sequential([
             layers.Conv2DTranspose(256, 4, 2, padding='same', activation='relu'),

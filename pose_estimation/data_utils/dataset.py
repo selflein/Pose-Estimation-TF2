@@ -9,6 +9,7 @@ from pose_estimation.config import cfg
 from pose_estimation.data_utils.coco import COCODataset
 from pose_estimation.data_utils.transforms import (affine_transform,
                                                    get_affine_transform)
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 
 def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, stage='train'):
@@ -52,10 +53,10 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
                                  flags=cv2.INTER_LINEAR)
 
     if stage == 'train':
-        if random.random() < 0.5:
-            cropped_img = cfg.motion_blur(image=cropped_img)
+        if random.random() < 0.7:
+            cropped_img = cfg.img_augmentations(image=cropped_img)
 
-    for i in range(cfg.num_kps):
+    for i in range(joints.shape[0]):
         if joints[i, 2] > 1:
             joints[i, :2] = affine_transform(joints[i, :2], trans)
             joints[i, 2] *= ((joints[i, 0] >= 0)
@@ -63,8 +64,19 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
                              & (joints[i, 1] >= 0)
                              & (joints[i, 1] < cfg.input_shape[0]))
 
+    # BGR -> RGB
     cropped_img = cropped_img[:, :, ::-1]
+
     cropped_img = cfg.normalize_input(cropped_img)
+
+    if stage == 'test':
+        # (x, y) coordinate of upper left and bottom right corner of crop with
+        # origin in top left corner of image
+        crop_info = np.asarray(
+            [center[0] - scale[0] * 0.5, center[1] - scale[1] * 0.5,
+             center[0] + scale[0] * 0.5, center[1] + scale[1] * 0.5])
+        return cropped_img, crop_info
+
     target_coord = joints[:, :2]
     target_valid = (joints[:, 2] > 1).astype(np.float32)
 
@@ -74,8 +86,8 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
 
 
 def render_gaussian_heatmap(coord, output_shape, sigma):
-    x = list(range(output_shape[1]))
-    y = list(range(output_shape[0]))
+    x = tf.range(output_shape[1])
+    y = tf.range(output_shape[0])
     xx, yy = tf.meshgrid(x, y)
     xx = tf.reshape(tf.cast(xx, tf.float32), (*output_shape, 1))
     yy = tf.reshape(tf.cast(yy, tf.float32), (*output_shape, 1))
@@ -122,10 +134,10 @@ def get_dataloader(samples, batch_size, buffer, num_workers, split='train'):
 
 
 def get_dataloaders(batch_size, buffer, num_workers):
-    samples_train = COCODataset(Path(cfg.data_dir) / cfg.dataset).load_train_data()
+    samples_train = COCODataset().load_train_data()
     dataset_train = get_dataloader(samples_train, batch_size, buffer, num_workers)
 
-    samples_val = COCODataset(Path(cfg.data_dir) / cfg.dataset).load_val_data_with_annot()
+    samples_val = COCODataset().load_val_data_with_annot()
     dataset_val = get_dataloader(samples_val, batch_size, buffer, num_workers)
 
     return dataset_train, len(samples_train) // batch_size, dataset_val, len(samples_val) // batch_size
@@ -134,6 +146,6 @@ def get_dataloaders(batch_size, buffer, num_workers):
 if __name__ == '__main__':
     import os
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    ds = get_dataloaders(4, 2, 1)[1]
+    ds = get_dataloaders(4, 2, 1)[0]
     batch = next(iter(ds))
     print(batch)
