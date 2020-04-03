@@ -1,34 +1,34 @@
-import os
 import os.path as osp
-import glob
-import numpy as np
+from pathlib import Path
+
 import cv2
-import json
-import pickle
+import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import savemat
-
-import sys
 from pycocotools.coco import COCO
 
 
-class MPIIDataset(object):
+class MPIIDataset:
     
     dataset_name = 'MPII'
     num_kps = 16
-    kps_names = ["r_ankle", "r_knee","r_hip", 
-                    "l_hip", "l_knee", "l_ankle",
-                  "pelvis", "throax",
-                  "upper_neck", "head_top",
-                  "r_wrist", "r_elbow", "r_shoulder",
-                  "l_shoulder", "l_elbow", "l_wrist"]
+    kps_names = [
+        "r_ankle", "r_knee", "r_hip",  "l_hip", "l_knee", "l_ankle", "pelvis",
+        "thorax", "upper_neck", "head_top", "r_wrist", "r_elbow", "r_shoulder",
+        "l_shoulder", "l_elbow", "l_wrist"
+    ]
     kps_symmetry = [(0, 5), (1, 4), (2, 3), (10, 15), (11, 14), (12, 13)]
-    kps_lines = [(0, 1), (1, 2), (2, 6), (7, 12), (12, 11), (11, 10), (5, 4), (4, 3), (3, 6), (7, 13), (13, 14), (14, 15), (6, 7), (7, 8), (8, 9)]
+    kps_lines = [
+        (0, 1), (1, 2), (2, 6), (7, 12), (12, 11), (11, 10), (5, 4), (4, 3),
+        (3, 6), (7, 13), (13, 14), (14, 15), (6, 7), (7, 8), (8, 9)
+    ]
 
-    human_det_path = osp.join('..', 'data', dataset_name, 'dets', 'human_detection.json') # human detection result
-    img_path = osp.join('..', 'data', dataset_name)
-    train_annot_path = osp.join('..', 'data', dataset_name, 'annotations', 'train.json')
-    test_annot_path = osp.join('..', 'data', dataset_name, 'annotations', 'test.json')
+    base_path = Path('data/MPII')
+    human_det_path = base_path / 'dets' / 'human_detection.json'
+    img_path = base_path / 'images'
+
+    train_annot_path = base_path / 'annotations' / 'train.json'
+    test_annot_path = base_path / 'annotations' / 'test.json'
 
     def load_train_data(self, score=False):
         coco = COCO(self.train_annot_path)

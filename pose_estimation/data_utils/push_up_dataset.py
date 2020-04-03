@@ -9,30 +9,25 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
 
-class COCODataset:
+class PushUpDataset:
     
-    dataset_name = 'COCO'
+    dataset_name = 'PushUp'
     num_kps = 17
-    kps_names = [
-        'nose', 'l_eye', 'r_eye', 'l_ear', 'r_ear', 'l_shoulder', 'r_shoulder',
-        'l_elbow', 'r_elbow', 'l_wrist', 'r_wrist', 'l_hip', 'r_hip', 'l_knee',
-        'r_knee', 'l_ankle', 'r_ankle'
-    ]
+    kps_names = ['nose', 'l_eye', 'r_eye', 'l_ear', 'r_ear', 'l_shoulder',
+    'r_shoulder', 'l_elbow', 'r_elbow', 'l_wrist', 'r_wrist',
+    'l_hip', 'r_hip', 'l_knee', 'r_knee', 'l_ankle', 'r_ankle']
     kps_symmetry = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12), (13, 14), (15, 16)]
-    kps_lines = [
-        (1, 2), (0, 1), (0, 2), (2, 4), (1, 3), (6, 8), (8, 10), (5, 7), (7, 9),
-        (12, 14), (14, 16), (11, 13), (13, 15), (5, 6), (11, 12)
-    ]
+    kps_lines = [(1, 2), (0, 1), (0, 2), (2, 4), (1, 3), (6, 8), (8, 10), (5, 7), (7, 9), (12, 14), (14, 16), (11, 13), (13, 15), (5, 6), (11, 12)]
 
-    base_path = Path('data/COCO')
+    base_path = Path('data/push_up_with_pseudo_labels')
     human_det_path = base_path / 'dets' / 'human_detection.json'
 
-    train_imgs = base_path / 'train2017'
-    val_imgs = base_path / 'val2017'
+    train_imgs = base_path / 'images'
+    val_imgs = base_path / 'images'
 
-    train_annot_path = base_path / 'annotations' / 'person_keypoints_train2017.json'
-    val_annot_path = base_path / 'annotations' / 'person_keypoints_val2017.json'
-    test_annot_path = base_path / 'annotations' / 'image_info_test-dev2017.json'
+    train_annot_path = base_path / 'annotations.json'
+    val_annot_path = base_path / 'annotations.json'
+    test_annot_path = base_path / 'annotations.json'
 
     def load_train_data(self):
         coco = COCO(self.train_annot_path)
@@ -62,18 +57,7 @@ class COCODataset:
         return train_samples
 
     def load_val_data_with_annot(self):
-        coco = COCO(self.val_annot_path)
-        val_samples = []
-        for aid in coco.anns.keys():
-            ann = coco.anns[aid]
-            if ann['image_id'] not in coco.imgs:
-                continue
-            imgname = self.val_imgs / coco.imgs[ann['image_id']]['file_name']
-            bbox = ann['bbox']
-            joints = ann['keypoints']
-            data = dict(image_id=ann['image_id'], imgpath=str(imgname.resolve()), bbox=bbox, joints=joints, score=1)
-            val_samples.append(data)
-        return val_samples
+        return self.load_train_data()
 
     def evaluation(self, result, gt, result_dir, db_set):
         result_path = result_dir / 'result.json'

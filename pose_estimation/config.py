@@ -42,7 +42,7 @@ class Config:
     img_augmentations = iaa.Sequential([
         iaa.Multiply((0.8, 1.2), per_channel=0.2),
         iaa.LinearContrast((0.75, 1.5)),
-        iaa.MotionBlur((3, 15))
+        iaa.MotionBlur((3, 8))
     ], random_order=True)
 
     ## testing config

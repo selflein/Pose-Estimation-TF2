@@ -1,4 +1,5 @@
 import random
+from math import ceil
 from pathlib import Path
 
 import cv2
@@ -7,12 +8,14 @@ import tensorflow as tf
 
 from pose_estimation.config import cfg
 from pose_estimation.data_utils.coco import COCODataset
+from pose_estimation.data_utils.mpii import MPIIDataset
+from pose_estimation.data_utils.push_up_dataset import PushUpDataset
+
 from pose_estimation.data_utils.transforms import (affine_transform,
                                                    get_affine_transform)
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 
-def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, stage='train'):
+def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, stage='train', scales=(1, 2, 4)):
     image_path = image_path.numpy().decode("utf-8")
     bbox = bbox.numpy()
     joints = joints.numpy()
@@ -57,7 +60,7 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
             cropped_img = cfg.img_augmentations(image=cropped_img)
 
     for i in range(joints.shape[0]):
-        if joints[i, 2] > 1:
+        if joints[i, 2] >= 1:
             joints[i, :2] = affine_transform(joints[i, :2], trans)
             joints[i, 2] *= ((joints[i, 0] >= 0)
                              & (joints[i, 0] < cfg.input_shape[1])
@@ -66,7 +69,6 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
 
     # BGR -> RGB
     cropped_img = cropped_img[:, :, ::-1]
-
     cropped_img = cfg.normalize_input(cropped_img)
 
     if stage == 'test':
@@ -78,13 +80,15 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
         return cropped_img, crop_info
 
     target_coord = joints[:, :2]
-    target_valid = (joints[:, 2] > 1).astype(np.float32)
+    target_valid = (joints[:, 2] >= 1).astype(np.float32)
 
     target = render_gaussian_heatmap(target_coord, cfg.output_shape, cfg.sigma)
     target = target_valid * target
-    return cropped_img, target
+    targets = [target[::scale, ::scale, :] for scale in scales]
+    return (cropped_img, *targets)
 
 
+@tf.function
 def render_gaussian_heatmap(coord, output_shape, sigma):
     x = tf.range(output_shape[1])
     y = tf.range(output_shape[0])
@@ -111,13 +115,16 @@ def dataset_generator(samples):
     return dataset_gen
 
 
-def get_dataloader(samples, batch_size, buffer, num_workers, split='train'):
+def get_dataloader(samples, batch_size, buffer, num_workers, split='train', scales=(1, 2, 4)):
     def map_func(image_path, bbox, joints):
         out = tf.py_function(
-            generate_batch, [image_path, bbox, joints, split], (tf.float32, tf.float32))
+            generate_batch, [image_path, bbox, joints, split, scales],
+            (tf.float32, *((tf.float32,) * len(scales)))
+        )
         out[0].set_shape((256, 192, 3))
-        out[1].set_shape((64, 48, 17))
-        return out
+        for i, scale in enumerate(scales, 1):
+            out[i].set_shape((64 // scale, 48 // scale, 17))
+        return out[0], tuple(o for o in out[1:])
 
     dataset_gen = dataset_generator(samples)
     dataset = tf.data.Dataset.from_generator(
@@ -133,19 +140,28 @@ def get_dataloader(samples, batch_size, buffer, num_workers, split='train'):
     return dataset
 
 
-def get_dataloaders(batch_size, buffer, num_workers):
-    samples_train = COCODataset().load_train_data()
-    dataset_train = get_dataloader(samples_train, batch_size, buffer, num_workers)
+def get_dataloaders(dataset_name, batch_size, buffer, num_workers, scales=(1,)):
+    name_to_dataset = {
+        'COCO': COCODataset,
+        'PushUp': PushUpDataset
+    }
+    dataset = name_to_dataset[dataset_name]
 
-    samples_val = COCODataset().load_val_data_with_annot()
-    dataset_val = get_dataloader(samples_val, batch_size, buffer, num_workers)
+    samples_train = dataset().load_train_data()
+    dataset_train = get_dataloader(samples_train, batch_size, buffer, num_workers, scales=scales)
 
-    return dataset_train, len(samples_train) // batch_size, dataset_val, len(samples_val) // batch_size
+    samples_val = dataset().load_val_data_with_annot()
+    dataset_val = get_dataloader(samples_val, batch_size, buffer, num_workers, scales=scales)
+
+    return (dataset_train,
+            int(ceil(len(samples_train) / batch_size)),
+            dataset_val,
+            int(ceil(len(samples_val) / batch_size)))
 
 
 if __name__ == '__main__':
     import os
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    ds = get_dataloaders(4, 2, 1)[0]
+    ds = get_dataloaders('COCO', 4, 2, 1, scales=(1, 2, 4))[0]
     batch = next(iter(ds))
-    print(batch)
+    print(batch[0].shape, batch[1][1].shape)

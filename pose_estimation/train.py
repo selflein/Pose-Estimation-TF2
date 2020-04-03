@@ -7,12 +7,13 @@ from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, ReduceLROnP
 from pose_estimation.config import cfg
 from pose_estimation.data_utils.dataset import get_dataloaders
 from pose_estimation.models.mobilenet_pose import MobileNetPose
-from pose_estimation.models.mobilenet_pose_pp import build_model
+# from pose_estimation.models.mobilenet_pose_pp import build_model
+from pose_estimation.models.blaze_pose import build_model
 
 
 def train():
-    model_checkpoint_path = cfg.model_dump_dir / 'without_skip.hdf5'
-    model = MobileNetPose()
+    model_checkpoint_path = cfg.model_dump_dir / 'blaze_pose.hdf5'
+    model = build_model(cfg.input_shape)
 
     if cfg.continue_train:
         model = model.load_weights(str(model_checkpoint_path))
@@ -24,7 +25,7 @@ def train():
     early_stopping = EarlyStopping(patience=10, restore_best_weights=True)
     reduce_on_plateau = ReduceLROnPlateau(patience=3)
 
-    train_data, len_train, val_data, len_val = get_dataloaders(cfg.batch_size, buffer=5, num_workers=cfg.num_thread)
+    train_data, len_train, val_data, len_val = get_dataloaders('COCO', cfg.batch_size, buffer=5, num_workers=cfg.num_thread, scales=(1, 2, 4))
     model.fit(train_data,
               validation_data=val_data,
               callbacks=[checkpoint, reduce_on_plateau, early_stopping],
