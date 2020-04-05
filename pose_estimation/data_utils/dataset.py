@@ -88,7 +88,6 @@ def generate_batch(image_path: tf.Tensor, bbox: tf.Tensor, joints: tf.Tensor, st
     return (cropped_img, *targets)
 
 
-@tf.function
 def render_gaussian_heatmap(coord, output_shape, sigma):
     x = tf.range(output_shape[1])
     y = tf.range(output_shape[0])
@@ -145,18 +144,18 @@ def get_dataloaders(dataset_name, batch_size, buffer, num_workers, scales=(1,)):
         'COCO': COCODataset,
         'PushUp': PushUpDataset
     }
-    dataset = name_to_dataset[dataset_name]
+    dataset = name_to_dataset[dataset_name]()
 
-    samples_train = dataset().load_train_data()
+    samples_train = dataset.load_train_data()
     dataset_train = get_dataloader(samples_train, batch_size, buffer, num_workers, scales=scales)
 
-    samples_val = dataset().load_val_data_with_annot()
+    samples_val = dataset.load_val_data_with_annot()
     dataset_val = get_dataloader(samples_val, batch_size, buffer, num_workers, scales=scales)
 
-    return (dataset_train,
-            int(ceil(len(samples_train) / batch_size)),
+    return (dataset_train.shuffle(10),
+            len(samples_train) // batch_size,
             dataset_val,
-            int(ceil(len(samples_val) / batch_size)))
+            len(samples_val) // batch_size)
 
 
 if __name__ == '__main__':

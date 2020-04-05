@@ -18,7 +18,7 @@ class Config:
     model_dump_dir = root_dir / 'models' / 'checkpoints'
 
     ## input, output
-    input_shape = (256, 192)  # (256,192), (384,288)
+    input_shape = (256, 192, 3)  # (256,192), (384,288)
     output_shape = (input_shape[0] // 4, input_shape[1] // 4)
     if output_shape[0] == 64:
         sigma = 2
@@ -26,23 +26,25 @@ class Config:
         sigma = 3
     ## training config
     end_epoch = 140
-    lr = 1e-3
+    lr = 3e-3
     lr_dec_rate = 0.95
     optimizer = 'adam'
     weight_decay = 0.00004
     bn_train = True
-    batch_size = 96
+    batch_size = 32
 
     # Scale augmentation (+- in percent)
-    scale_factor = 0.3
+    scale_factor = 0.25
     # Rotation augmentation (+- in degrees)
-    rotation_factor = 40
+    rotation_factor = 30
 
     # Image augmentations
     img_augmentations = iaa.Sequential([
         iaa.Multiply((0.8, 1.2), per_channel=0.2),
         iaa.LinearContrast((0.75, 1.5)),
-        iaa.MotionBlur((3, 8))
+        iaa.MotionBlur((3, 8)),
+        iaa.ChannelShuffle(0.1),
+        iaa.MultiplyHueAndSaturation((0.5, 1.5), per_channel=True)
     ], random_order=True)
 
     ## testing config
@@ -50,7 +52,7 @@ class Config:
     flip_test = True
     oks_nms_thr = 0.9
     score_thr = 0.2
-    test_batch_size = 32
+    test_batch_size = 64
 
     ## others
     multi_thread_enable = True

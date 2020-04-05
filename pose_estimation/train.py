@@ -1,31 +1,33 @@
 import tqdm
 import tensorflow as tf
-from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.models import load_model
+from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, ReduceLROnPlateau, LearningRateScheduler, EarlyStopping
 
 from pose_estimation.config import cfg
+from pose_estimation.models.blaze_pose import build_model
 from pose_estimation.data_utils.dataset import get_dataloaders
 from pose_estimation.models.mobilenet_pose import MobileNetPose
 # from pose_estimation.models.mobilenet_pose_pp import build_model
-from pose_estimation.models.blaze_pose import build_model
 
 
 def train():
     model_checkpoint_path = cfg.model_dump_dir / 'blaze_pose.hdf5'
-    model = build_model(cfg.input_shape)
-
-    if cfg.continue_train:
-        model = model.load_weights(str(model_checkpoint_path))
-    optim = Adam(cfg.lr, epsilon=cfg.weight_decay)
-    model.compile(optimizer=optim, loss='mse', metrics=['mse'])
-
+    train_data, len_train, val_data, len_val = get_dataloaders('COCO', cfg.batch_size, buffer=5, num_workers=8, scales=(1, 2, 4))
+    min_delta = 1e-3
     checkpoint = ModelCheckpoint(str(model_checkpoint_path), save_best_only=True, save_weights_only=False)
     lr_sched = LearningRateScheduler(cfg.get_lr, verbose=1)
-    early_stopping = EarlyStopping(patience=10, restore_best_weights=True)
-    reduce_on_plateau = ReduceLROnPlateau(patience=3)
+    early_stopping = EarlyStopping(patience=10, restore_best_weights=True, min_delta=min_delta)
+    reduce_on_plateau = ReduceLROnPlateau(patience=3, min_delta=min_delta)
 
-    train_data, len_train, val_data, len_val = get_dataloaders('COCO', cfg.batch_size, buffer=5, num_workers=cfg.num_thread, scales=(1, 2, 4))
+    if cfg.continue_train:
+        model = load_model(str(model_checkpoint_path))
+    else:
+        model = build_model(cfg.input_shape)
+        optim = Adam(cfg.lr, epsilon=cfg.weight_decay)
+        model.compile(optimizer=optim, loss='mse', metrics=['mse'])
+
     model.fit(train_data,
               validation_data=val_data,
               callbacks=[checkpoint, reduce_on_plateau, early_stopping],

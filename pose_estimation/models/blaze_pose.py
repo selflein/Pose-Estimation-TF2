@@ -79,8 +79,8 @@ def double_blaze_block(x: tf.Tensor, filters, mid_channels=None, stride=1, train
     return tf.nn.relu(bn2 + x)
 
 
-def build_model(input_shape=(256, 192), num_keypoints=17):
-    input, feature0, feature1, feature2 = build_backbone((*input_shape, 3))
+def build_model(input_shape=(256, 192, 3), num_keypoints=17):
+    input, feature0, feature1, feature2 = build_backbone(input_shape)
 
     up_feat_1 = layers.UpSampling2D()(feature2)
     comb_feat_1 = tf.concat([up_feat_1, feature1], axis=-1)
@@ -108,8 +108,8 @@ def build_model(input_shape=(256, 192), num_keypoints=17):
 if __name__ == '__main__':
     shape = (256, 192)
 
-    model = build_model(shape)
-    model.build(input_shape=(None, 256, 192, 3))
-    model.summary()
+    m = build_model(shape)
+    m.build(input_shape=(None, 256, 192, 3))
+    m.summary()
     from tensorflow.keras.utils import plot_model
-    plot_model(model, show_shapes=True)
+    plot_model(m, show_shapes=True)
