@@ -26,8 +26,6 @@ class PushUpDataset:
     val_imgs = base_path / 'images'
 
     train_annot_path = base_path / 'annotations.json'
-    val_annot_path = base_path / 'annotations.json'
-    test_annot_path = base_path / 'annotations.json'
 
     def load_train_data(self):
         coco = COCO(self.train_annot_path)

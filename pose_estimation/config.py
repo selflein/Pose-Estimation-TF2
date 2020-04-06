@@ -29,9 +29,9 @@ class Config:
     lr = 3e-3
     lr_dec_rate = 0.95
     optimizer = 'adam'
-    weight_decay = 0.00004
+    weight_decay = 0.0
     bn_train = True
-    batch_size = 32
+    batch_size = 64
 
     # Scale augmentation (+- in percent)
     scale_factor = 0.25
@@ -59,7 +59,7 @@ class Config:
     num_thread = 8
     gpu_ids = '0'
     num_gpus = 1
-    continue_train = False
+    continue_train = True
     display = 1
 
     ## helper functions
@@ -67,7 +67,7 @@ class Config:
         return cfg.lr * (cfg.lr_dec_rate ** epoch)
 
     def normalize_input(self, img):
-        return img / 127.5 - 1
+        return img / 127.5 - 1.
 
     def denormalize_input(self, img):
         return (img + 1) * 127.5

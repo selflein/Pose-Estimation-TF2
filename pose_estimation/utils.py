@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def extract_keypoints_from_heatmap_numpy(heatmap: tf.Tensor):
+def extract_keypoints_from_heatmap_numpy(heatmap: np.array):
     row_idxs = tf.argmax(tf.reduce_max(heatmap, axis=1), axis=0).numpy()
     col_idxs = tf.argmax(tf.reduce_max(heatmap, axis=0), axis=0).numpy()
 

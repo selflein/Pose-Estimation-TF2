@@ -14,24 +14,24 @@ from pose_estimation.models.mobilenet_pose import MobileNetPose
 
 def train():
     model_checkpoint_path = cfg.model_dump_dir / 'blaze_pose.hdf5'
-    train_data, len_train, val_data, len_val = get_dataloaders('COCO', cfg.batch_size, buffer=5, num_workers=8, scales=(1, 2, 4))
+    train_data, len_train, val_data, len_val = get_dataloaders('COCO', cfg.batch_size, buffer=5, num_workers=8, scales=(1,))
     min_delta = 1e-3
     checkpoint = ModelCheckpoint(str(model_checkpoint_path), save_best_only=True, save_weights_only=False)
     lr_sched = LearningRateScheduler(cfg.get_lr, verbose=1)
-    early_stopping = EarlyStopping(patience=10, restore_best_weights=True, min_delta=min_delta)
-    reduce_on_plateau = ReduceLROnPlateau(patience=3, min_delta=min_delta)
+    early_stopping = EarlyStopping(patience=5, restore_best_weights=True, min_delta=min_delta)
+    reduce_on_plateau = ReduceLROnPlateau(patience=2, min_delta=min_delta)
 
     if cfg.continue_train:
         model = load_model(str(model_checkpoint_path))
     else:
         model = build_model(cfg.input_shape)
         optim = Adam(cfg.lr, epsilon=cfg.weight_decay)
-        model.compile(optimizer=optim, loss='mse', metrics=['mse'])
+        model.compile(optimizer=optim, loss='mse')
 
     model.fit(train_data,
               validation_data=val_data,
               callbacks=[checkpoint, reduce_on_plateau, early_stopping],
-              epochs=cfg.end_epoch,
+              epochs=5,
               validation_freq=1,
               steps_per_epoch=len_train,
               validation_steps=len_val)
@@ -46,7 +46,7 @@ def train_loop():
     optimizer = Adam(cfg.lr, epsilon=cfg.weight_decay)
     criterion = MeanSquaredError()
 
-    train_data, len_train, val_data, len_val = get_dataloaders(cfg.batch_size, buffer=5, num_workers=cfg.num_thread)
+    train_data, len_train, val_data, len_val = get_dataloaders('COCO', cfg.batch_size, buffer=5, num_workers=cfg.num_thread)
 
     for epoch in range(cfg.end_epoch):
     # Reset the metrics at the start of the next epoch
