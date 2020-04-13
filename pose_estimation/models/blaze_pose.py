@@ -83,14 +83,14 @@ def build_model(input_shape=(256, 192, 3), num_keypoints=17):
     comb_feat_2 = layers.Conv2D(96, 3, 1, 'same')(comb_feat_2)
     comb_feat_2 = double_blaze_block(comb_feat_2, filters=96, mid_channels=24)
     comb_feat_2 = double_blaze_block(comb_feat_2, filters=96, mid_channels=24)
-    # pred_2 = layers.Conv2D(num_keypoints, 1, 1, 'same')(comb_feat_2)
+    pred_2 = layers.Conv2D(num_keypoints, 1, 1, 'same')(comb_feat_2)
 
     up_feat_3 = layers.UpSampling2D()(comb_feat_2)
     comb_feat_3 = double_blaze_block(up_feat_3, filters=96, mid_channels=24)
     comb_feat_3 = double_blaze_block(comb_feat_3, filters=96, mid_channels=24)
     pred_3 = layers.Conv2D(num_keypoints, 1, 1, 'same')(comb_feat_3)
 
-    model = tf.keras.Model(inputs=input, outputs=(pred_3,))
+    model = tf.keras.Model(inputs=input, outputs=(pred_3))
     return model
 
 

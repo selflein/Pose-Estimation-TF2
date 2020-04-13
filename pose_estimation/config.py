@@ -82,9 +82,9 @@ class Config:
 
 cfg = Config()
 
-from pose_estimation.data_utils.coco import COCODataset
+from pose_estimation.data_utils.mpii import MPIIDataset
 
-dbcfg = COCODataset
+dbcfg = MPIIDataset
 cfg.num_kps = dbcfg.num_kps
 cfg.kps_names = dbcfg.kps_names
 cfg.kps_lines = dbcfg.kps_lines

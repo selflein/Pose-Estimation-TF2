@@ -122,7 +122,7 @@ def get_dataloader(samples, batch_size, buffer, num_workers, split='train', num_
             generate_batch, [image_path, bbox, joints, split, scales],
             (tf.float32, *((tf.float32,) * len(scales)))
         )
-        out[0].set_shape((256, 192, 3))
+        out[0].set_shape(cfg.input_shape)
         for i, scale in enumerate(scales, 1):
             out[i].set_shape((64 // scale, 48 // scale, num_keypoints))
         return out[0], tuple(o for o in out[1:])
@@ -168,6 +168,6 @@ def get_dataloaders(dataset_name, batch_size, buffer, num_workers, scales=(1,)):
 if __name__ == '__main__':
     import os
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    ds = get_dataloaders('COCO', 4, 2, 1, scales=(1, 2, 4))[0]
+    ds = get_dataloaders('MPII', 4, 2, 1, scales=(1, 2, 4))[2]
     batch = next(iter(ds))
     print(batch[0].shape, batch[1][1].shape)

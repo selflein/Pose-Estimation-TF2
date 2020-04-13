@@ -1,57 +1,61 @@
 import tensorflow as tf
 
 from tensorflow.keras import layers, Sequential
+from tensorflow.keras.utils import plot_model
 
 
-def depthwise_separable_conv(filters=256):
-    conv_1 = Sequential([
-        layers.DepthwiseConv2D(3, padding='same'),
-        layers.BatchNormalization(),
-        layers.LeakyReLU(0.2)
-    ])
-    conv_2 = Sequential([
-        layers.Conv2D(filters, 1),
-        layers.BatchNormalization(),
-        layers.LeakyReLU(0.2)
-    ])
-    return Sequential([conv_1, conv_2])
+def upsample(inp, skip, mid_filters=128, out_filters=64):
+    up = layers.UpSampling2D()(inp)
+
+    reduced = layers.Conv2D(mid_filters, 1, 1, 'same')(skip)
+
+    concat = layers.concatenate([up, reduced], axis=-1)
+
+    out = layers.SeparableConv2D(out_filters, 3, 1, 'same')(concat)
+    out = layers.LeakyReLU(alpha=0.2)(out)
+    out = layers.BatchNormalization()(out)
+    return out
 
 
-def build_model(image_shape=(256, 192, 3)):
+def build_model(image_shape=(256, 192, 3), out_classes=17, alpha=1.):
     backbone = tf.keras.applications.MobileNetV2(
+        alpha=alpha,
         input_shape=image_shape,
         include_top=False,
         weights='imagenet'
     )
 
-    for layer in backbone.layers[:13]:
+    for layer in backbone.layers:
         layer.trainable = False
 
-    out = depthwise_separable_conv(1280)(backbone.output)
+    backbone_reduced = layers.Conv2D(256, 1, 1, 'same')(backbone.output)
 
     # * block_13_expand_relu (16, 12, 576)
-    out = layers.Conv2DTranspose(256, 4, 2, padding='same')(out)
-    out = layers.BatchNormalization()(out)
-    out = layers.LeakyReLU(0.2)(out)
-    out = layers.concatenate([out, backbone.get_layer('block_13_expand_relu').output], axis=-1)
-    out = depthwise_separable_conv(256 + 576)(out)
+    out = upsample(backbone_reduced,
+                   backbone.get_layer('block_13_expand_relu').output,
+                   mid_filters=256,
+                   out_filters=256)
 
     # * block_6_expand_relu (32, 24, 192)
-    out = layers.Conv2DTranspose(128, 4, 2, padding='same')(out)
-    out = layers.BatchNormalization()(out)
-    out = layers.LeakyReLU(0.2)(out)
-    out = layers.concatenate([out, backbone.get_layer('block_6_expand_relu').output], axis=-1)
-    out = depthwise_separable_conv(128 + 192)(out)
+    out = upsample(out,
+                   backbone.get_layer('block_6_expand_relu').output,
+                   mid_filters=256,
+                   out_filters=128)
 
     # * block_3_expand_relu (64, 48, 144)
-    out = layers.Conv2DTranspose(64, 4, 2, padding='same')(out)
-    out = layers.BatchNormalization()(out)
-    out = layers.LeakyReLU(0.2)(out)
-    out = layers.concatenate([out, backbone.get_layer('block_3_expand_relu').output], axis=-1)
-    out = depthwise_separable_conv(64 + 144)(out)
+    out = upsample(out,
+                   backbone.get_layer('block_3_expand_relu').output,
+                   mid_filters=128,
+                   out_filters=64)
 
-    out = layers.Conv2D(17, 1, padding='same')(out)
+    pred = layers.Conv2D(out_classes, 1, padding='same')(out)
 
-    model = tf.keras.Model(inputs=backbone.input, outputs=out)
+    model = tf.keras.Model(inputs=backbone.input, outputs=pred)
 
     return model
+
+
+if __name__ == '__main__':
+    m = build_model()
+    plot_model(m, '/tmp/model.png')
+    print(m.summary())

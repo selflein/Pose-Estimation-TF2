@@ -25,20 +25,21 @@ class MPIIDataset:
 
     base_path = Path('data/MPII')
     human_det_path = base_path / 'dets' / 'human_detection.json'
-    img_path = base_path / 'images'
+    img_path = base_path
 
     train_annot_path = base_path / 'annotations' / 'train.json'
     test_annot_path = base_path / 'annotations' / 'test.json'
 
-    def load_train_data(self, score=False):
+    def load_train_data(self):
         coco = COCO(self.train_annot_path)
-        train_data = []
+        train_samples = []
         for aid in coco.anns.keys():
             ann = coco.anns[aid]
-            imgname = coco.imgs[ann['image_id']]['file_name']
+            imgname = self.img_path / coco.imgs[ann['image_id']]['file_name']
             joints = ann['keypoints']
 
-            if (ann['image_id'] not in coco.imgs) or ann['iscrowd'] or (ann['num_keypoints'] == 0):
+            if (ann['image_id'] not in coco.imgs) or ann['iscrowd'] or (
+                    np.sum(joints[2::3]) == 0) or (ann['num_keypoints'] == 0):
                 continue
 
             # sanitize bboxes
@@ -50,17 +51,17 @@ class MPIIDataset:
             x2 = np.min((width - 1, x1 + np.max((0, w - 1))))
             y2 = np.min((height - 1, y1 + np.max((0, h - 1))))
             if ann['area'] > 0 and x2 >= x1 and y2 >= y1:
-                bbox = [x1, y1, x2-x1, y2-y1]
+                bbox = [x1, y1, x2 - x1, y2 - y1]
             else:
                 continue
-            
-            if score:
-                data = dict(image_id = ann['image_id'], imgpath = imgname, bbox=bbox, joints=joints, score=1)
-            else:
-                data = dict(image_id = ann['image_id'], imgpath = imgname, bbox=bbox, joints=joints)
-            train_data.append(data)
+            data = dict(image_id=ann['image_id'],
+                        imgpath=str(imgname.resolve()), bbox=bbox,
+                        joints=joints)
+            train_samples.append(data)
+        return train_samples
 
-        return train_data
+    def load_val_data_with_annot(self):
+        return self.load_train_data()[:500]
     
     def load_annot(self, db_set):
         if db_set == 'train':
