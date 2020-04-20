@@ -18,8 +18,8 @@ def train():
     min_delta = 1e-4
     checkpoint = ModelCheckpoint(str(model_checkpoint_path), save_best_only=True, save_weights_only=False)
     lr_sched = LearningRateScheduler(cfg.get_lr, verbose=1)
-    early_stopping = EarlyStopping(patience=30, restore_best_weights=True, min_delta=min_delta)
-    reduce_on_plateau = ReduceLROnPlateau(patience=10, min_delta=min_delta)
+    early_stopping = EarlyStopping(patience=10, restore_best_weights=True, min_delta=min_delta)
+    reduce_on_plateau = ReduceLROnPlateau(patience=5, min_delta=min_delta)
 
     model = build_model(cfg.input_shape, out_classes=16)
     if model_checkpoint_path.is_file():
@@ -31,7 +31,7 @@ def train():
     model.fit(train_data,
               validation_data=val_data,
               callbacks=[checkpoint, reduce_on_plateau, early_stopping],
-              epochs=10,
+              epochs=30,
               validation_freq=1,
               steps_per_epoch=len_train,
               validation_steps=len_val)

@@ -29,13 +29,18 @@ def train():
             skip_mismatch=True
         )
 
+        # Freeze everything except the output layer
+        for layer in model.layers:
+            if layer.name != 'out':
+                layer.trainable = False
+
     optim = Adam(5e-3, epsilon=cfg.weight_decay)
     model.compile(optimizer=optim, loss='mse')
 
     model.fit(train_data,
               validation_data=val_data,
               callbacks=[checkpoint, reduce_on_plateau, early_stopping],
-              epochs=5,
+              epochs=10,
               validation_freq=1,
               steps_per_epoch=len_train,
               validation_steps=len_val)

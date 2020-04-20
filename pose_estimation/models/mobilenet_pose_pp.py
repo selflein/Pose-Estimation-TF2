@@ -48,7 +48,7 @@ def build_model(image_shape=(256, 192, 3), out_classes=17, alpha=1.):
                    mid_filters=128,
                    out_filters=64)
 
-    pred = layers.Conv2D(out_classes, 1, padding='same')(out)
+    pred = layers.Conv2D(out_classes, 1, padding='same', name='out')(out)
 
     model = tf.keras.Model(inputs=backbone.input, outputs=pred)
 
